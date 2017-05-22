@@ -3,50 +3,44 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.DataLine;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.SourceDataLine;
-import javax.sound.sampled.UnsupportedAudioFileException;
+import javax.sound.sampled.*;
 
-public class MediaPlayer {
-	Map<String, AudioInputStream> audioFiles = new HashMap<String, AudioInputStream>();
+public class MediaPlayer implements LineListener {
+	Map<String, Clip> audioFiles = new HashMap<String, Clip>();
+    boolean playCompleted;
 	public void play(String filename) {
 		if(!(this.audioFiles.containsKey(filename))) {
 			File file = new File(filename);
 		    if(file.exists()) {
 		        try {
 		            AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(file);
-		            audioFiles.put(filename, audioInputStream);
-		            
+
 		            AudioFormat audioFormat = audioInputStream.getFormat();
-	
-		            DataLine.Info info = new DataLine.Info(SourceDataLine.class, audioFormat);
-	
-		            SourceDataLine sourceLine = (SourceDataLine) AudioSystem.getLine(info);
-		            sourceLine.open(audioFormat);
-	
-		            sourceLine.start();
-	
-		            int nBytesRead = 0;
-		            byte[] abData = new byte[128000];
-		            while (nBytesRead != -1) {
+
+		            DataLine.Info info = new DataLine.Info(Clip.class, audioFormat);
+
+		            Clip audioClip = (Clip) AudioSystem.getLine(info);
+		            
+
+		            audioClip.addLineListener(this);
+		            audioClip.open(audioInputStream);
+		            audioFiles.put("filename", audioClip);
+
+		            audioClip.start();
+		            
+		            while (!playCompleted) {
+		                // wait for the playback completes
 		                try {
-		                    nBytesRead = audioInputStream.read(abData, 0, abData.length);
-		                } catch (IOException e) {
-		                    e.printStackTrace();
-		                }
-		                if (nBytesRead >= 0) {
-		                    sourceLine.write(abData, 0, nBytesRead);
+		                    Thread.sleep(100);
+		                } catch (InterruptedException ex) {
+		                    ex.printStackTrace();
 		                }
 		            }
-	
-		            sourceLine.drain();
-		            sourceLine.close();
-		            System.out.println("Played"+filename);
-	
+		             
+		            
+		            audioClip.close();
+		            playCompleted = false;
+		            System.out.println("Played "+filename);
 		        } catch (UnsupportedAudioFileException | IOException e) {
 		            e.printStackTrace();
 		        } catch (LineUnavailableException e) {
@@ -57,37 +51,25 @@ public class MediaPlayer {
 		    }
 		}
 		else {
-			try {
-	            AudioInputStream audioInputStream = audioFiles.get(filename);
-
-	            AudioFormat audioFormat = audioInputStream.getFormat();
-
-	            DataLine.Info info = new DataLine.Info(SourceDataLine.class, audioFormat);
-
-	            SourceDataLine sourceLine = (SourceDataLine) AudioSystem.getLine(info);
-	            sourceLine.open(audioFormat);
-
-	            sourceLine.start();
-
-	            int nBytesRead = 0;
-	            byte[] abData = new byte[128000];
-	            while (nBytesRead != -1) {
-	                try {
-	                    nBytesRead = audioInputStream.read(abData, 0, abData.length);
-	                } catch (IOException e) {
-	                    e.printStackTrace();
-	                }
-	                if (nBytesRead >= 0) {
-	                    sourceLine.write(abData, 0, nBytesRead);
-	                }
-	            }
-
-	            sourceLine.drain();
-	            sourceLine.close();
-	            System.out.println("Played"+filename);
-	        } catch (LineUnavailableException e) {
-	            e.printStackTrace();
-	        }
+	        Clip audioClip = audioFiles.get(filename);
+	
+	        audioClip.start();
+	        
+	        audioClip.close();
+	        System.out.println("Played "+filename+" from memory");
 		}
 	}
+	@Override
+	public void update(LineEvent event) {
+        LineEvent.Type type = event.getType();
+         
+        if (type == LineEvent.Type.START) {
+            System.out.println("Playback started.");
+             
+        } else if (type == LineEvent.Type.STOP) {
+            playCompleted = true;
+            System.out.println("Playback completed.");
+        }
+ 
+    }
 }
