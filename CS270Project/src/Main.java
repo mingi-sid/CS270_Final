@@ -18,12 +18,15 @@ public class Main extends Thread {
 		            AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(file);
 	
 		            AudioFormat audioFormat = audioInputStream.getFormat();
+		            
+		            int size = (int)(audioFormat.getFrameSize() * audioInputStream.getFrameLength());
+		            byte[] audioByte = new byte[size];
+		            DataLine.Info info = new DataLine.Info(Clip.class, audioFormat, size);
 	
-		            DataLine.Info info = new DataLine.Info(Clip.class, audioFormat);
-	
+		            audioInputStream.read(audioByte, 0, size);
 		            Clip audioClip = (Clip) AudioSystem.getLine(info);
 		            
-		            audioClip.open(audioInputStream);
+		            audioClip.open(audioFormat, audioByte, 0, size);
 		            audioClips.put(audioFileNames[i], audioClip);
 		        } catch (UnsupportedAudioFileException | IOException e) {
 		            e.printStackTrace();
@@ -34,22 +37,26 @@ public class Main extends Thread {
 		        System.err.println("The selected file "+audioFileNames[i]+" doesn't exist!");
 		    }
 		}
-		
+		System.out.println("Loaded all files");
 		
 		for(int i = 0; i < 5; i++) {
+			System.out.println("1");
 			new PlayerThread(audioClips.get("Kick_Nerd.wav")).start();
-			Thread.sleep(400);
+			Thread.sleep(300);
 
+			System.out.println("2");
 			new PlayerThread(audioClips.get("Kick_Nerd.wav")).start();
-			new PlayerThread(audioClips.get("Snare_JackU.wav")).start();
-			Thread.sleep(400);
+			//new PlayerThread(audioClips.get("Snare_JackU.wav")).start();
+			Thread.sleep(300);
 
+			System.out.println("3");
 			new PlayerThread(audioClips.get("Kick_Nerd.wav")).start();
-			Thread.sleep(400);
+			Thread.sleep(300);
 
-			new PlayerThread(audioClips.get("Snare_JackU.wav")).start();
+			System.out.println("4");
+			//new PlayerThread(audioClips.get("Snare_JackU.wav")).start();
 			new PlayerThread(audioClips.get("Kick_Nerd.wav")).start();
-			Thread.sleep(400);
+			Thread.sleep(300);
 		}
 		/*
 		String waiting = "Waiting...";
@@ -83,10 +90,20 @@ class PlayerThread extends Thread implements LineListener{
 		this.audioClip = audioClip;
 	}
 	public void run() {
-        this.audioClip.addLineListener(this);
+        audioClip.addLineListener(this);
         audioClip.setFramePosition(0);
         audioClip.start();
-        audioClip.setFramePosition(0);
+        System.out.println(String.valueOf(Thread.currentThread()) + "Playback started.");
+        while (!playCompleted) {
+            // wait for the playback completes
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ex) {
+                ex.printStackTrace();
+            }
+        }
+        audioClip.removeLineListener(this);
+        return;
 	}
 	@Override
 	public void update(LineEvent event) {
@@ -97,7 +114,6 @@ class PlayerThread extends Thread implements LineListener{
              
         } else if (type == LineEvent.Type.STOP) {
             playCompleted = true;
-            System.out.println("Playback completed.");
         }
     }
 }
