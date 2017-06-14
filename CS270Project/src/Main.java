@@ -11,7 +11,7 @@ import javax.sound.sampled.*;
 public class Main extends Thread {
 	public static void main(String [] args) throws Exception {
 		Map<String, Pair<byte[], AudioFormat>> audioData = new HashMap<String, Pair<byte[], AudioFormat>>();
-		Map<String, Long> audioTime = new HashMap<String, Long>();
+		Map<Long, String> audioTime = new HashMap<Long, String>();
 		
 		//Definition of keys code
 		long KEY_ESCAPE	= 0x8000000000000000l;
@@ -57,6 +57,10 @@ public class Main extends Thread {
 				0x0000010000000000l,
 				0x0000008000000000l,
 				0x0000004000000000l};
+		
+		int penta = 1;
+		long loop_duration = 4000;
+		
 		// Reading all necessary audio files
 		String[] audioFileNames = {"Kick_Nerd.wav", "Snare_JackU.wav",
 				"A (10).wav", "A (11).wav", "A (12).wav", "A (13).wav", "A (14).wav",
@@ -77,7 +81,6 @@ public class Main extends Thread {
 		            audioInputStream.read(audioByte, 0, size);
 		            
 		            audioData.put(audioFileNames[i], new Pair<byte[], AudioFormat>(audioByte, audioFormat));
-		            audioTime.put(audioFileNames[i], 0l);
 		        } catch (UnsupportedAudioFileException | IOException e) {
 		            e.printStackTrace();
 		        }
@@ -118,33 +121,34 @@ public class Main extends Thread {
 		}
 		*/
 		long servin;
+		long prev_in = 0l;
 		long time_gap = 150;
 		int last_xylophone = -1;
+		long prevloop = 0;
 		while(true) {
 			servin = in.readLong();
+			if(servin != 0) {
+				System.out.println(Long.toHexString(servin));
+			}
 			//Escape
 			if((servin & KEY_ESCAPE) != 0l) {
 				break;
 			}
 			//Drum machine
-			if((servin & KEY_DOWN) != 0l) {
+			if((servin & KEY_DOWN) != 0l && (prev_in & KEY_DOWN) == 0l) {
 				String s = "Kick_Nerd.wav";
-				if(audioTime.get(s) + time_gap < System.currentTimeMillis()) {
-					new PlayerThread(audioData.get(s)).start();
-					audioTime.put(s, System.currentTimeMillis());
-				}
+				new PlayerThread(audioData.get(s)).start();
+				audioTime.put(System.currentTimeMillis() % loop_duration, s);
 			}
-			if((servin & KEY_ENTER) != 0l) {
+			if((servin & KEY_ENTER) != 0l && (prev_in & KEY_ENTER) == 0l) {
 				String s = "Snare_JackU.wav";
-				if(audioTime.get(s) + time_gap < System.currentTimeMillis()) {
-					new PlayerThread(audioData.get(s)).start();
-					audioTime.put(s, System.currentTimeMillis());
-				}
+				new PlayerThread(audioData.get(s)).start();
+				audioTime.put(System.currentTimeMillis() % loop_duration, s);
 			}
 			//Drum machine end
 			
 			//Xylophone
-			if((servin & IR) != 0) {
+			if((servin & IR) != 0 && (prev_in & IR) != (servin & IR)) {
 				//System.out.println("Xylophone");
 				int cnt = 0;
 				for(cnt = 0; cnt < 18; cnt++) {
@@ -152,17 +156,53 @@ public class Main extends Thread {
 						break;
 					}
 				}
-				if(last_xylophone != cnt + 10) {
-					last_xylophone = cnt + 10;
+				System.out.println(cnt + 10);
+				if(penta != 1) {
 					String filename = "A (" + String.valueOf(cnt + 10) + ").wav";
 					String s = filename;
-					if(audioTime.get(s) + time_gap < System.currentTimeMillis()) {
-						new PlayerThread(audioData.get(s)).start();
-						audioTime.put(s, System.currentTimeMillis());
+					new PlayerThread(audioData.get(s)).start();
+					audioTime.put(System.currentTimeMillis() % loop_duration, s);
+				}
+				if(penta == 1) {
+					String filename = "A (10).wav";
+					String s = filename;
+					if(cnt + 10 >= 10 && cnt + 10 < 13) {
+						filename = "A (10).wav";
+						s = filename;
 					}
+					else if(cnt + 10 >= 13 && cnt + 10 < 16) {
+						filename = "A (13).wav";
+						s = filename;
+					}
+					else if(cnt + 10 >= 16 && cnt + 10 < 19) {
+						filename = "A (15).wav";
+						s = filename;
+					}
+					else if(cnt + 10 >= 19 && cnt + 10 < 21) {
+						filename = "A (17).wav";
+						s = filename;
+					}
+					else if(cnt + 10 >= 22 && cnt + 10 < 25) {
+						filename = "A (20).wav";
+						s = filename;
+					}
+					else if(cnt + 10 >= 25 && cnt + 10 < 28) {
+						filename = "A (22).wav";
+						s = filename;
+					}
+					new PlayerThread(audioData.get(s)).start();
+					audioTime.put(System.currentTimeMillis() % loop_duration, s);
 				}
 			}
+			prev_in = servin;
 			//Xylophone end
+			long currloop = System.currentTimeMillis();
+			for(long key: audioTime.keySet()) {
+				if(key > prevloop % loop_duration && key <= currloop % loop_duration) {
+					new PlayerThread(audioData.get(audioTime.get(key))).start();
+				}
+			}
+			prevloop = currloop;
 		}
 		
 		//Release resources

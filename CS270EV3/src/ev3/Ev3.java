@@ -149,9 +149,12 @@ public class Ev3 {
 		
 		int buttons;
 		long data = 0l;
+		boolean xylophone_off = true;
+		float xylophone_prev = 999;
 		
 		do {
 			data = 0l;
+			
 			distanceMode.fetchSample(value, 0);
 			float centimeter = value[0];
 			buttons = keys.getButtons();
@@ -178,14 +181,26 @@ public class Ev3 {
 			
 			
 			//Drum machine ends
+			
 			//Xylophone
-			if(centimeter >= 5 && centimeter < 42) {
-				if((centimeter-5)/2 >= 0 && (centimeter-5)/2 < 18) {
-					data = data | IRs[(int) ((centimeter-5)/2)];
+			if(xylophone_off == true) {
+				if((int)xylophone_prev < (int)centimeter) {
+					if((xylophone_prev-5)/2 >= 0 && (xylophone_prev-5)/2 < 18) {
+						xylophone_off = false;
+						data = data | IRs[(int) ((xylophone_prev-5)/2)];
+					}
 				}
 			}
+			if(centimeter >= 42) {
+				xylophone_off = true;
+			}
+			xylophone_prev = centimeter;
 			//Xylophone ends
+			
 			//Launchpad
+			if(motor_on == 1) {
+				
+			}
 			//Launchpad ends
 			try {
 				out.writeLong(data);
