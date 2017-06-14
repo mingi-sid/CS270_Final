@@ -1,23 +1,62 @@
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.sound.sampled.*;
 
-import lejos.hardware.Keys;
-import lejos.hardware.port.SensorPort;
-import lejos.hardware.sensor.EV3IRSensor;
-import lejos.remote.ev3.RMIRegulatedMotor;
-import lejos.remote.ev3.RMISampleProvider;
-import lejos.remote.ev3.RemoteEV3;
-import lejos.robotics.SampleProvider;
-import lejos.utility.Delay;
-
 public class Main extends Thread {
 	public static void main(String [] args) throws Exception {
 		Map<String, Pair<byte[], AudioFormat>> audioData = new HashMap<String, Pair<byte[], AudioFormat>>();
+		Map<String, Long> audioTime = new HashMap<String, Long>();
 		
+		//Definition of keys code
+		long KEY_ESCAPE	= 0x8000000000000000l;
+		long KEY_DOWN 	= 0x4000000000000000l;
+		long KEY_ENTER 	= 0x2000000000000000l;
+		long KEY_LEFT 	= 0x1000000000000000l;
+		long KEY_RIGHT	= 0x0800000000000000l;
+		long KEY_UP		= 0x0400000000000000l;
+		long IR			= 0x00ffffc000000000l;
+		long IR_10		= 0x0080000000000000l;
+		long IR_11		= 0x0040000000000000l;
+		long IR_12		= 0x0020000000000000l;
+		long IR_13		= 0x0010000000000000l;
+		long IR_14		= 0x0008000000000000l;
+		long IR_15		= 0x0004000000000000l;
+		long IR_16		= 0x0002000000000000l;
+		long IR_17		= 0x0001000000000000l;
+		long IR_18		= 0x0000800000000000l;
+		long IR_19		= 0x0000400000000000l;
+		long IR_20		= 0x0000200000000000l;
+		long IR_21		= 0x0000100000000000l;
+		long IR_22		= 0x0000080000000000l;
+		long IR_23		= 0x0000040000000000l;
+		long IR_24		= 0x0000020000000000l;
+		long IR_25		= 0x0000010000000000l;
+		long IR_26		= 0x0000008000000000l;
+		long IR_27		= 0x0000004000000000l;
+		long[] IRs = {0x0080000000000000l,
+				0x0040000000000000l,
+				0x0020000000000000l,
+				0x0010000000000000l,
+				0x0008000000000000l,
+				0x0004000000000000l,
+				0x0002000000000000l,
+				0x0001000000000000l,
+				0x0000800000000000l,
+				0x0000400000000000l,
+				0x0000200000000000l,
+				0x0000100000000000l,
+				0x0000080000000000l,
+				0x0000040000000000l,
+				0x0000020000000000l,
+				0x0000010000000000l,
+				0x0000008000000000l,
+				0x0000004000000000l};
 		// Reading all necessary audio files
 		String[] audioFileNames = {"Kick_Nerd.wav", "Snare_JackU.wav",
 				"A (10).wav", "A (11).wav", "A (12).wav", "A (13).wav", "A (14).wav",
@@ -38,6 +77,7 @@ public class Main extends Thread {
 		            audioInputStream.read(audioByte, 0, size);
 		            
 		            audioData.put(audioFileNames[i], new Pair<byte[], AudioFormat>(audioByte, audioFormat));
+		            audioTime.put(audioFileNames[i], 0l);
 		        } catch (UnsupportedAudioFileException | IOException e) {
 		            e.printStackTrace();
 		        }
@@ -48,26 +88,12 @@ public class Main extends Thread {
 		System.out.println("Loaded all files");
 		
 		// Connect to EV3
-		int ir_on = 0;
-		int motor_on = 1;
 		
-		RemoteEV3 ev3 = new RemoteEV3("10.0.1.1");
-		ev3.setDefault();
-		System.out.println("Remote Connection Accomplished");
+		Socket sock = new Socket("10.0.1.1", 1234);
+		DataInputStream in = new DataInputStream(sock.getInputStream());
+		DataOutputStream out = new DataOutputStream(sock.getOutputStream());
+		System.out.println("Socket Connection Established");
 		
-		Keys keys1 = ev3.getKeys();
-		RMISampleProvider ir_sensor = null;
-		if(ir_on == 1) {
-			ir_sensor = ev3.createSampleProvider("S1", "lejos.hardware.sensor.EV3IRSensor", "distance");
-		}
-		RMISampleProvider touch = null;
-		//touch = ev3.createSampleProvider("S2", "lejos.hardware.sensor.EV3TouchSensor", "Touch");
-		RMIRegulatedMotor motor1 = null;
-		//RMIRegulatedMotor motor1 = ev3.createRegulatedMotor("A", 'L');
-		
-		
-		if(motor_on == 1)
-		Thread.sleep(1000);
 		
 		//Main loop starts
 		/*
@@ -91,52 +117,66 @@ public class Main extends Thread {
 			Thread.sleep(300);
 		}
 		*/
-		
-		int buttons;
-		do {
+		long servin;
+		long time_gap = 150;
+		int last_xylophone = -1;
+		while(true) {
+			servin = in.readLong();
+			//Escape
+			if((servin & KEY_ESCAPE) != 0l) {
+				break;
+			}
 			//Drum machine
-			buttons = keys1.getButtons();
-			if((buttons & Keys.ID_DOWN) != 0) {
-				new PlayerThread(audioData.get("Kick_Nerd.wav")).start();
+			if((servin & KEY_DOWN) != 0l) {
+				String s = "Kick_Nerd.wav";
+				if(audioTime.get(s) + time_gap < System.currentTimeMillis()) {
+					new PlayerThread(audioData.get(s)).start();
+					audioTime.put(s, System.currentTimeMillis());
+				}
 			}
-			if((buttons & Keys.ID_ENTER) != 0) {
-				new PlayerThread(audioData.get("Snare_JackU.wav")).start();
+			if((servin & KEY_ENTER) != 0l) {
+				String s = "Snare_JackU.wav";
+				if(audioTime.get(s) + time_gap < System.currentTimeMillis()) {
+					new PlayerThread(audioData.get(s)).start();
+					audioTime.put(s, System.currentTimeMillis());
+				}
 			}
+			//Drum machine end
 			
-			
-			//Drum machine ends
 			//Xylophone
-			if(ir_on == 1) {
-				float[] value;
-				value = ir_sensor.fetchSample();
-				float centimeter = value[0];
-				if(centimeter >= 5 && centimeter < 42) {
-					new PlayerThread(audioData.get("A ("+String.valueOf((centimeter-5)/2+10)+").wav")).start();
+			if((servin & IR) != 0) {
+				//System.out.println("Xylophone");
+				int cnt = 0;
+				for(cnt = 0; cnt < 18; cnt++) {
+					if((servin & IRs[cnt]) != 0) {
+						break;
+					}
+				}
+				if(last_xylophone != cnt + 10) {
+					last_xylophone = cnt + 10;
+					String filename = "A (" + String.valueOf(cnt + 10) + ").wav";
+					String s = filename;
+					if(audioTime.get(s) + time_gap < System.currentTimeMillis()) {
+						new PlayerThread(audioData.get(s)).start();
+						audioTime.put(s, System.currentTimeMillis());
+					}
 				}
 			}
-			else if(ir_on == 1) {
-				float[] touchon;
-				touchon = touch.fetchSample();
-				if(touchon[0] > 0.5) {
-					new PlayerThread(audioData.get("A ("+String.valueOf((motor1.getTachoCount())/2+10)+").wav")).start();
-				}
-			}
-			//Xylophone ends
-			//Launchpad
-			//Launchpad ends
-			Delay.msDelay(100);
-		} while((buttons & Keys.ID_ESCAPE) == 0);
-		
-		//Main loop ends
-		
-		/*
-		for(int i = 0; i < audioFileNames.length; i++) {
-			Clip audio = audioClips.get(audioFileNames[i]);
-			audio.close();
+			//Xylophone end
 		}
-		*/
+		
+		//Release resources
+		try {
+			if(sock != null) sock.close();	
+			if(in != null) in.close();
+			if(out != null) out.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 }
+
 class PlayerThread extends Thread implements LineListener{
 	byte[] audioByte;
 	AudioFormat audioFormat;
